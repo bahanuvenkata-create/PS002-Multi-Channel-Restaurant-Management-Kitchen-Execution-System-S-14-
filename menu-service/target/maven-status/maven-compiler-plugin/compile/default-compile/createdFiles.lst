@@ -1,0 +1,10 @@
+com\bistrobyte\menu\config\MenuDataInitializer.class
+com\bistrobyte\menu\entity\Restaurant.class
+com\bistrobyte\menu\repository\RestaurantRepository.class
+com\bistrobyte\menu\repository\MenuItemRepository.class
+com\bistrobyte\menu\MenuServiceApplication.class
+com\bistrobyte\menu\controller\MenuController.class
+com\bistrobyte\menu\controller\RestaurantController.class
+com\bistrobyte\menu\service\PlacesDiscoveryService.class
+com\bistrobyte\menu\controller\ChatbotController.class
+com\bistrobyte\menu\entity\MenuItem.class

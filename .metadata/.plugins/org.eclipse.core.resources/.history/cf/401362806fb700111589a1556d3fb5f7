@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BistroByte | Multi-Channel Restaurant Management & Kitchen Execution System</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+    <!-- App Header -->
+    <header class="app-header">
+        <div class="brand-section">
+            <div class="logo-icon">🍽️</div>
+            <div class="brand-titles">
+                <h1>BistroByte Hospitality</h1>
+                <span class="subtitle">Multi-Channel Restaurant Management & Kitchen Execution System</span>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <!-- Live Microservice Status -->
+            <div class="system-status-pills">
+                <div class="status-pill" title="Netflix Eureka Discovery Active">
+                    <span class="status-dot"></span>
+                    <span>Eureka : 8761</span>
+                </div>
+                <div class="status-pill" title="Spring Cloud API Gateway Active">
+                    <span class="status-dot"></span>
+                    <span>Gateway : 8000</span>
+                </div>
+            </div>
+
+            <!-- Auth Section: Login/Logout Button -->
+            <div id="authHeaderSection" class="auth-header-section">
+                <!-- Shown when logged OUT -->
+                <div id="loggedOutView">
+                    <button class="btn-login-header" onclick="openLoginModal()">
+                        🔑 Login
+                    </button>
+                </div>
+                <!-- Shown when logged IN -->
+                <div id="loggedInView" style="display:none;">
+                    <div class="logged-in-pill">
+                        <span id="headerRoleBadge" class="role-badge-header"></span>
+                        <span id="headerUserName" style="font-weight:600; font-size:0.9rem;"></span>
+                        <button class="btn-logout" onclick="logoutUser()">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs Bar -->
+    <nav class="nav-tabs-bar">
+        <button class="nav-tab-btn active" onclick="openTab('menuTab')">
+            <span>🍽️ Digital Menu &amp; Ordering</span>
+        </button>
+        <button class="nav-tab-btn" onclick="openTab('kitchenTab')">
+            <span>🍳 Kitchen Execution (KDS)</span>
+            <span class="tab-badge" id="kdsBadge">0</span>
+        </button>
+        <button class="nav-tab-btn" onclick="openTab('trackerTab')">
+            <span>📍 Live Order Tracker</span>
+        </button>
+        <button class="nav-tab-btn" onclick="openTab('managementTab')">
+            <span>📋 Menu &amp; Sold-Out Manager</span>
+        </button>
+        <button class="nav-tab-btn" onclick="openTab('testCenterTab')">
+            <span>🚀 Direct URL Test Center</span>
+            <span class="tab-badge" style="background: #3b82f6;">No Postman</span>
+        </button>
+        <button class="nav-tab-btn" onclick="openTab('infraTab')">
+            <span>🌐 Eureka &amp; Services</span>
+        </button>
+    </nav>
+
+    <!-- Main Application Content -->
+    <main class="main-content">
+
+        <!-- ================= TAB 1: DIGITAL MENU & ORDERING ================= -->
+        <section id="menuTab" class="tab-pane active">
+            <div class="section-banner">
+                <div>
+                    <h2>Dynamic Digital Menu</h2>
+                    <p>Order seamlessly across Dine-In, Takeaway, or Direct Delivery with live availability checks.</p>
+                </div>
+                <div class="channel-info-chip" style="background: var(--bg-surface); padding: 0.5rem 1rem; border-radius: 9999px; border: 1px solid var(--border); font-size: 0.85rem;">
+                    💡 Orders for <strong>sold-out items</strong> are dynamically blocked at both UI and Order Service.
+                </div>
+            </div>
+
+            <!-- Category & Search Filters -->
+            <div class="menu-controls">
+                <div class="category-pills">
+                    <button class="category-pill active" onclick="filterCategory('All')">All Dishes</button>
+                    <button class="category-pill" onclick="filterCategory('Starters')">Starters</button>
+                    <button class="category-pill" onclick="filterCategory('Mains')">Mains</button>
+                    <button class="category-pill" onclick="filterCategory('Chef Specials')">Chef Specials</button>
+                    <button class="category-pill" onclick="filterCategory('Desserts')">Desserts</button>
+                    <button class="category-pill" onclick="filterCategory('Beverages')">Beverages</button>
+                </div>
+
+                <div class="search-box">
+                    <span>🔍</span>
+                    <input type="text" id="menuSearchInput" placeholder="Search dish or ingredient..." oninput="handleMenuSearch(this.value)">
+                </div>
+            </div>
+
+            <!-- Menu Dishes Grid -->
+            <div class="menu-grid" id="menuDishesGrid">
+                <!-- Dynamically populated via JavaScript -->
+            </div>
+        </section>
+
+        <!-- ================= TAB 2: KITCHEN EXECUTION SYSTEM (KDS) ================= -->
+        <section id="kitchenTab" class="tab-pane">
+            <div class="section-banner">
+                <div>
+                    <h2>Kitchen Execution Display (KDS)</h2>
+                    <p>Real-time order pipeline eliminating kitchen operational bottlenecks and expediting food preparation.</p>
+                </div>
+                <button class="btn-kds-action" onclick="fetchKitchenOrders()" style="background: var(--primary);">
+                    🔄 Refresh Queue
+                </button>
+            </div>
+
+            <!-- KDS Metric Counters -->
+            <div class="kds-stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon placed">📝</div>
+                    <div class="stat-data">
+                        <h3 id="statPlaced">0</h3>
+                        <p>Orders Placed</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon prep">🍳</div>
+                    <div class="stat-data">
+                        <h3 id="statPreparing">0</h3>
+                        <p>Currently Cooking</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon ready">🔔</div>
+                    <div class="stat-data">
+                        <h3 id="statReady">0</h3>
+                        <p>Ready for Pickup</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon total">📦</div>
+                    <div class="stat-data">
+                        <h3 id="statTotalActive">0</h3>
+                        <p>Total Active Kitchen</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KDS Workflow Columns -->
+            <div class="kds-columns">
+                <!-- Column 1: Placed -->
+                <div class="kds-column">
+                    <div class="kds-col-header">
+                        <div class="kds-col-title">
+                            <span>📝 Placed &amp; Confirmed</span>
+                        </div>
+                        <span class="kds-count-badge" id="colPlacedCount">0</span>
+                    </div>
+                    <div class="kds-cards-container" id="colPlacedCards"></div>
+                </div>
+
+                <!-- Column 2: Preparing -->
+                <div class="kds-column">
+                    <div class="kds-col-header">
+                        <div class="kds-col-title">
+                            <span>🔥 Preparing / Cooking</span>
+                        </div>
+                        <span class="kds-count-badge" id="colPrepCount">0</span>
+                    </div>
+                    <div class="kds-cards-container" id="colPrepCards"></div>
+                </div>
+
+                <!-- Column 3: Ready For Pickup / Delivery -->
+                <div class="kds-column">
+                    <div class="kds-col-header">
+                        <div class="kds-col-title">
+                            <span>✅ Ready for Pickup / Delivery</span>
+                        </div>
+                        <span class="kds-count-badge" id="colReadyCount">0</span>
+                    </div>
+                    <div class="kds-cards-container" id="colReadyCards"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 3: LIVE ORDER TRACKER ================= -->
+        <section id="trackerTab" class="tab-pane">
+            <div class="section-banner">
+                <div>
+                    <h2>Live Order Tracking</h2>
+                    <p>Track order lifecycle across customer and staff interfaces in real-time.</p>
+                </div>
+            </div>
+
+            <div class="tracker-wrapper">
+                <div class="tracker-search">
+                    <input type="text" id="trackerInput" placeholder="Enter Order Number (e.g., BB-1021, BB-1044, BB-1088)..." value="BB-1021">
+                    <button onclick="trackOrder()">Track Live</button>
+                </div>
+
+                <!-- Visual 5-Step Stepper -->
+                <div class="stepper-container" id="stepperContainer">
+                    <div class="stepper-progress-bar" id="stepperProgressBar" style="width: 50%;"></div>
+
+                    <div class="step-node completed" id="stepNode1">
+                        <div class="step-circle">📝</div>
+                        <span class="step-label">Order Placed</span>
+                    </div>
+                    <div class="step-node completed" id="stepNode2">
+                        <div class="step-circle">👨‍🍳</div>
+                        <span class="step-label">Confirmed</span>
+                    </div>
+                    <div class="step-node active" id="stepNode3">
+                        <div class="step-circle">🍳</div>
+                        <span class="step-label">Cooking</span>
+                    </div>
+                    <div class="step-node" id="stepNode4">
+                        <div class="step-circle">🔔</div>
+                        <span class="step-label">Ready</span>
+                    </div>
+                    <div class="step-node" id="stepNode5">
+                        <div class="step-circle">🎉</div>
+                        <span class="step-label">Delivered</span>
+                    </div>
+                </div>
+
+                <!-- Order Details Card -->
+                <div class="tracker-details-card" id="trackerDetailsCard">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 4: MENU & SOLD-OUT MANAGER ================= -->
+        <section id="managementTab" class="tab-pane">
+            <div class="section-banner">
+                <div>
+                    <h2>Menu &amp; Stock Availability Control</h2>
+                    <p>Instantly toggle dishes as Sold Out to eliminate kitchen bottlenecks and prevent invalid orders.</p>
+                </div>
+                <button class="btn-checkout" style="width: auto; margin-top: 0; padding: 0.6rem 1.25rem;" onclick="openAddDishModal()">
+                    ➕ Add New Menu Dish
+                </button>
+            </div>
+
+            <div class="inventory-table-wrap">
+                <table class="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Dish ID</th>
+                            <th>Item Name</th>
+                            <th>Category</th>
+                            <th>Price</th>
+                            <th>Dietary</th>
+                            <th>Stock Availability Status</th>
+                            <th>Instant Toggle</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventoryTableBody">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ================= TAB 5: DIRECT URL TEST CENTER (NO POSTMAN) ================= -->
+        <section id="testCenterTab" class="tab-pane">
+            <div class="section-banner">
+                <div>
+                    <h2>Direct Browser URL Test Center</h2>
+                    <p>Execute and test all backend microservice APIs directly via browser URLs without using Postman.</p>
+                </div>
+            </div>
+
+            <div class="test-center-container">
+                <div class="test-center-notice">
+                    <div>
+                        <h3>✨ Postman-Free API Testing</h3>
+                        <p>All endpoints can be clicked to open directly in a new browser tab, or tested on-page to view live JSON response output.</p>
+                    </div>
+                    <div style="font-family: monospace; font-size: 0.8rem; background: var(--bg-card); padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid var(--border);">
+                        Base URL: <strong>http://localhost:8000</strong> (API Gateway)
+                    </div>
+                </div>
+
+                <!-- API Endpoint Groups -->
+                <div class="api-groups-grid">
+
+                    <!-- Group 1: Menu Microservice Endpoints -->
+                    <div class="api-group-card">
+                        <div class="api-group-header">
+                            <h4>🍽️ Menu Service APIs</h4>
+                            <span class="status-pill" style="font-size: 0.7rem;">Port: 8082</span>
+                        </div>
+
+                        <!-- 1. All Menu Items -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Get All Menu Items</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/menu/all</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/menu/all" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/menu/all')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 2. Available Items -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Get Available (In-Stock) Items</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/menu/available</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/menu/available" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/menu/available')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 3. Category Filter -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Filter By Category (Mains)</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/menu/category?name=Mains</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/menu/category?name=Mains" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/menu/category?name=Mains')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 4. Inter-Service Availability Check -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Check Item Availability (Inter-Service)</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/menu/check-availability?id=1</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/menu/check-availability?id=1" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/menu/check-availability?id=1')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 5. Direct URL Availability Toggle -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Toggle Dish Stock State (Direct URL)</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/menu/toggle-availability?id=1</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/menu/toggle-availability?id=1" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/menu/toggle-availability?id=1')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 6. Direct URL Quick Dish Create -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Quick Create Dish via URL</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/menu/quick-create?name=BBQ+Ribs&amp;category=Mains&amp;price=19.99</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/menu/quick-create?name=BBQ+Ribs&category=Mains&price=19.99" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/menu/quick-create?name=BBQ+Ribs&category=Mains&price=19.99')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Group 2: Order Microservice Endpoints -->
+                    <div class="api-group-card">
+                        <div class="api-group-header">
+                            <h4>📦 Order &amp; Kitchen APIs</h4>
+                            <span class="status-pill" style="font-size: 0.7rem;">Port: 8083</span>
+                        </div>
+
+                        <!-- 1. All Orders -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>List All Restaurant Orders</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/orders/all</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/orders/all" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/orders/all')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 2. Active Kitchen Queue -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Active Kitchen Pipeline (KDS Queue)</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/orders/kitchen/active</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/orders/kitchen/active" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/orders/kitchen/active')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 3. Live Order Tracking -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Track Order (BB-1021)</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/orders/track?orderNumber=BB-1021</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/orders/track?orderNumber=BB-1021" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/orders/track?orderNumber=BB-1021')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 4. Filter by Channel -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Filter by Channel (DINE_IN)</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/orders/channel?type=DINE_IN</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/orders/channel?type=DINE_IN" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/orders/channel?type=DINE_IN')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 5. Direct URL Status Transition -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Update Order Status (PREPARING)</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/orders/update-status-get?orderId=1&amp;status=PREPARING</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/orders/update-status-get?orderId=1&status=PREPARING" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/orders/update-status-get?orderId=1&status=PREPARING')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 6. Quick Create Dine-In Order -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Quick Create Dine-In Order via URL</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/orders/quick-create-dinein?table=Table+9&amp;customer=Sophie</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/orders/quick-create-dinein?table=Table+9&customer=Sophie" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/orders/quick-create-dinein?table=Table+9&customer=Sophie')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Group 3: Auth & JWT Microservice Endpoints -->
+                    <div class="api-group-card">
+                        <div class="api-group-header">
+                            <h4>🔐 Role-Based JWT Auth APIs</h4>
+                            <span class="status-pill" style="font-size: 0.7rem;">Port: 8081</span>
+                        </div>
+
+                        <!-- 1. All Users -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>List All Registered Users</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/auth/users</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/auth/users" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/auth/users')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 2. Demo Tokens -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Get Ready-to-Use JWT Tokens</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/auth/demo-tokens</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/auth/demo-tokens" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/auth/demo-tokens')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 3. Quick Login Admin -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Quick Login as ADMIN</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/auth/quick-login?role=ADMIN</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/auth/quick-login?role=ADMIN" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/auth/quick-login?role=ADMIN')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 4. Quick Login Kitchen Chef -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Quick Login as KITCHEN_STAFF</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/auth/quick-login?role=KITCHEN_STAFF</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/auth/quick-login?role=KITCHEN_STAFF" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/auth/quick-login?role=KITCHEN_STAFF')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+
+                        <!-- 5. Quick Register Customer via URL -->
+                        <div class="api-endpoint-item">
+                            <div class="endpoint-meta">
+                                <span class="http-method GET">GET</span>
+                                <span>Add / Register Customer via URL</span>
+                            </div>
+                            <div class="endpoint-url-code">/api/auth/quick-register?name=John+Doe&amp;email=john.doe@example.com&amp;phone=555-0199</div>
+                            <div class="endpoint-actions">
+                                <a href="/api/auth/quick-register?name=John+Doe&email=john.doe@example.com&phone=555-0199" target="_blank" class="btn-open-url">🔗 Open in New Tab</a>
+                                <button class="btn-run-endpoint" onclick="runDirectUrl('/api/auth/quick-register?name=John+Doe&email=john.doe@example.com&phone=555-0199')">⚡ Test on Page</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Response Console -->
+                <div class="json-console-section">
+                    <div class="json-console-header">
+                        <span id="consoleUrlHeader">Live API Response Output</span>
+                        <button class="btn-open-url" onclick="clearConsole()" style="padding: 0.2rem 0.5rem;">Clear Console</button>
+                    </div>
+                    <pre class="json-response-display" id="jsonConsoleOutput">// Click any "⚡ Test on Page" button above to execute an API via direct URL and inspect the live JSON response right here!</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 6: INFRASTRUCTURE & EUREKA ================= -->
+        <section id="infraTab" class="tab-pane">
+            <div class="section-banner">
+                <div>
+                    <h2>Microservices Infrastructure &amp; Service Discovery</h2>
+                    <p>Live registry status and routing overview for the BistroByte distributed architecture.</p>
+                </div>
+                <a href="http://localhost:8761" target="_blank" class="btn-kds-action" style="background: var(--primary); text-decoration: none;">
+                    🌐 Open Eureka Dashboard (:8761)
+                </a>
+            </div>
+
+            <div class="eureka-grid">
+                <div class="service-card">
+                    <div class="service-card-top">
+                        <span class="service-name">EUREKA-SERVER</span>
+                        <span class="service-port">:8761</span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Netflix Eureka Service Registry maintaining dynamic heartbeats and discovery for all microservices.</p>
+                    <div class="status-pill"><span class="status-dot"></span> Registered &amp; Discoverable</div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-card-top">
+                        <span class="service-name">API-GATEWAY</span>
+                        <span class="service-port">:8000</span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Spring Cloud API Gateway routing traffic to microservices (`lb://`) and serving the embedded web application.</p>
+                    <div class="status-pill"><span class="status-dot"></span> Edge Proxy Active</div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-card-top">
+                        <span class="service-name">AUTH-SERVICE</span>
+                        <span class="service-port">:8081</span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Role-based JWT authentication service protecting restaurant operations with role claims.</p>
+                    <div class="status-pill"><span class="status-dot"></span> PostgreSQL Connected</div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-card-top">
+                        <span class="service-name">MENU-SERVICE</span>
+                        <span class="service-port">:8082</span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Decoupled digital menu catalog, dynamic categories, and real-time sold-out stock management.</p>
+                    <div class="status-pill"><span class="status-dot"></span> PostgreSQL Connected</div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-card-top">
+                        <span class="service-name">ORDER-SERVICE</span>
+                        <span class="service-port">:8083</span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Multi-channel ordering, kitchen execution system (KDS), and inter-service stock validation via RestTemplate.</p>
+                    <div class="status-pill"><span class="status-dot"></span> PostgreSQL Connected</div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Floating Order Cart Button -->
+    <button class="cart-floating-button" onclick="openCartDrawer()">
+        <span>🛍️ View Order</span>
+        <span class="tab-badge" id="cartCountBadge" style="background: #fff; color: var(--primary);">0</span>
+        <span id="cartTotalBadge">$0.00</span>
+    </button>
+
+    <!-- Slide-in Cart Drawer -->
+    <div class="cart-modal-overlay" id="cartOverlay" onclick="closeCartOnOverlay(event)">
+        <div class="cart-drawer">
+            <div class="cart-drawer-header">
+                <h3>Your Restaurant Order</h3>
+                <button class="close-btn" onclick="closeCartDrawer()">&times;</button>
+            </div>
+
+            <div class="cart-drawer-body">
+                <!-- Multi-Channel Selector -->
+                <div>
+                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem; text-transform: uppercase;">
+                        Order Channel:
+                    </label>
+                    <div class="channel-selector">
+                        <button class="channel-btn active" id="btnChannelDineIn" onclick="selectChannel('DINE_IN')">🪑 Dine-In</button>
+                        <button class="channel-btn" id="btnChannelTakeaway" onclick="selectChannel('TAKEAWAY')">🥡 Takeaway</button>
+                        <button class="channel-btn" id="btnChannelDelivery" onclick="selectChannel('DELIVERY')">🛵 Delivery</button>
+                    </div>
+                </div>
+
+                <!-- Dynamic Channel Details Form -->
+                <div class="channel-details-form">
+                    <div class="form-group" id="groupTableNum">
+                        <label>Table Number</label>
+                        <input type="text" id="inputTableNum" class="form-control" placeholder="e.g., Table 5" value="Table 3">
+                    </div>
+
+                    <div class="form-group" id="groupAddress" style="display: none;">
+                        <label>Delivery Address</label>
+                        <input type="text" id="inputAddress" class="form-control" placeholder="Street, Apt / Suite, City">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Guest / Customer Name</label>
+                        <input type="text" id="inputCustomerName" class="form-control" value="Alice Customer">
+                    </div>
+
+                    <div class="form-group" id="groupPhone">
+                        <label>Contact Phone</label>
+                        <input type="text" id="inputPhone" class="form-control" value="+1-555-0102">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Kitchen Notes / Special Requests</label>
+                        <input type="text" id="inputSpecialNotes" class="form-control" placeholder="e.g., Extra spicy, dressing on side">
+                    </div>
+                </div>
+
+                <!-- Order Cart Items -->
+                <div>
+                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem; text-transform: uppercase;">
+                        Selected Dishes:
+                    </label>
+                    <div class="cart-items-list" id="cartItemsList">
+                        <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 2rem 0;">Your order is currently empty. Browse the menu to add dishes!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cart Drawer Footer -->
+            <div class="cart-drawer-footer">
+                <div class="bill-row">
+                    <span>Subtotal:</span>
+                    <span id="billSubtotal">$0.00</span>
+                </div>
+                <div class="bill-row">
+                    <span>Restaurant Tax (5%):</span>
+                    <span id="billTax">$0.00</span>
+                </div>
+                <div class="bill-row total">
+                    <span>Total Amount:</span>
+                    <span id="billTotal" style="color: var(--accent);">$0.00</span>
+                </div>
+
+                <button class="btn-checkout" onclick="submitOrder()">
+                    Confirm &amp; Place Order 🚀
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Adding New Dish (Admin / Staff) -->
+    <div class="cart-modal-overlay" id="addDishOverlay" style="justify-content: center; align-items: center;" onclick="closeAddDishOnOverlay(event)">
+        <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); width: 500px; max-width: 90vw; padding: 1.75rem; box-shadow: var(--shadow-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <h3 style="font-family: var(--font-heading);">Add New Menu Dish</h3>
+                <button class="close-btn" onclick="closeAddDishModal()">&times;</button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div class="form-group">
+                    <label>Dish Name</label>
+                    <input type="text" id="newDishName" class="form-control" placeholder="e.g., Crispy Lemon Herb Chicken">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="newDishCategory" class="form-control">
+                            <option value="Starters">Starters</option>
+                            <option value="Mains">Mains</option>
+                            <option value="Chef Specials">Chef Specials</option>
+                            <option value="Desserts">Desserts</option>
+                            <option value="Beverages">Beverages</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Price ($ USD)</label>
+                        <input type="number" id="newDishPrice" class="form-control" step="0.5" value="16.50">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label>Dietary Type</label>
+                        <select id="newDishDiet" class="form-control">
+                            <option value="Veg">Vegetarian</option>
+                            <option value="Non-Veg">Non-Vegetarian</option>
+                            <option value="Vegan">Vegan</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Prep Time (Minutes)</label>
+                        <input type="number" id="newDishPrepTime" class="form-control" value="15">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="newDishDesc" class="form-control" rows="2" placeholder="Gourmet dish description..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Image URL (Optional)</label>
+                    <input type="text" id="newDishImage" class="form-control" placeholder="https://images.unsplash.com/...">
+                </div>
+
+                <button class="btn-checkout" style="margin-top: 0.5rem;" onclick="submitNewDish()">
+                    Save Dish to Menu
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ================= LOGIN / REGISTER MODAL ================= -->
+    <div class="modal-backdrop" id="loginModalBackdrop" onclick="closeLoginModalOnBackdrop(event)">
+        <div class="login-modal" id="loginModal">
+            <!-- Modal Header -->
+            <div class="login-modal-header">
+                <div class="login-logo">🍽️</div>
+                <div>
+                    <h2 style="font-family:var(--font-heading); margin:0; font-size:1.4rem;">BistroByte Access</h2>
+                    <p style="margin:0; font-size:0.8rem; color:var(--text-muted);">Authenticate to access your role-specific dashboard</p>
+                </div>
+                <button class="close-btn" style="margin-left:auto;" onclick="closeLoginModal()">&#x2715;</button>
+            </div>
+
+            <!-- Tab Toggle -->
+            <div class="login-tabs">
+                <button class="login-tab-btn active" id="tabBtnLogin" onclick="showAuthTab('login')">Login</button>
+                <button class="login-tab-btn" id="tabBtnRegister" onclick="showAuthTab('register')">Register</button>
+            </div>
+
+            <!-- LOGIN FORM -->
+            <div id="loginForm">
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">
+                    💡 Demo accounts: <strong>admin@bistrobyte.com</strong> / <strong>kitchen@bistrobyte.com</strong> / <strong>alice@bistrobyte.com</strong> &nbsp;|&nbsp; Password: <strong>password</strong>
+                </p>
+
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="loginEmail" class="form-control" placeholder="admin@bistrobyte.com" value="admin@bistrobyte.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" class="form-control" placeholder="Enter your password" value="password"
+                        onkeydown="if(event.key==='Enter') doLogin()">
+                </div>
+
+                <!-- Quick-pick role buttons -->
+                <div style="margin: 0.75rem 0;">
+                    <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.5rem; font-weight:600;">QUICK SELECT DEMO ROLE:</p>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="quick-role-btn" onclick="prefillLogin('admin@bistrobyte.com','password')">👑 Admin</button>
+                        <button class="quick-role-btn" onclick="prefillLogin('kitchen@bistrobyte.com','password')">👨‍🍳 Kitchen Staff</button>
+                        <button class="quick-role-btn" onclick="prefillLogin('alice@bistrobyte.com','password')">🧑‍💼 Customer</button>
+                    </div>
+                </div>
+
+                <button class="btn-checkout" style="margin-top:0.5rem;" onclick="doLogin()" id="loginSubmitBtn">
+                    🔑 Login &amp; Access Dashboard
+                </button>
+                <div id="loginError" style="color:#f87171; font-size:0.8rem; margin-top:0.5rem; display:none;"></div>
+            </div>
+
+            <!-- REGISTER FORM -->
+            <div id="registerForm" style="display:none;">
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">
+                    📝 Register a new customer account. Staff/Admin accounts are created by the administrator.
+                </p>
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="regName" class="form-control" placeholder="e.g., John Smith">
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="regEmail" class="form-control" placeholder="john.smith@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="regPassword" class="form-control" placeholder="Create a password">
+                </div>
+                <div class="form-group">
+                    <label>Phone Number (Optional)</label>
+                    <input type="text" id="regPhone" class="form-control" placeholder="+1-555-0100">
+                </div>
+                <button class="btn-checkout" style="margin-top:0.5rem;" onclick="doRegister()" id="registerSubmitBtn">
+                    ✅ Create Customer Account
+                </button>
+                <div id="registerError" style="color:#f87171; font-size:0.8rem; margin-top:0.5rem; display:none;"></div>
+                <div id="registerSuccess" style="color:#4ade80; font-size:0.8rem; margin-top:0.5rem; display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

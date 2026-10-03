@@ -1,0 +1,245 @@
+package com.bistrobyte.auth.controller;
+
+import com.bistrobyte.auth.entity.User;
+import com.bistrobyte.auth.repository.UserRepository;
+import com.bistrobyte.auth.util.JwtUtil;
+import io.jsonwebtoken.Claims;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/auth")
+@CrossOrigin(origins = "*")
+public class AuthController {
+
+    private final UserRepository userRepository;
+    private final JwtUtil jwtUtil;
+
+    public AuthController(UserRepository userRepository, JwtUtil jwtUtil) {
+        this.userRepository = userRepository;
+        this.jwtUtil = jwtUtil;
+    }
+
+    // Direct Browser URL to view all registered users
+    @GetMapping("/users")
+    public ResponseEntity<List<Map<String, Object>>> getAllUsers() {
+        List<Map<String, Object>> list = userRepository.findAll().stream().map(u -> {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("id", u.getId());
+            map.put("name", u.getName());
+            map.put("email", u.getEmail());
+            map.put("role", u.getRole());
+            map.put("phone", u.getPhone());
+            return map;
+        }).toList();
+        return ResponseEntity.ok(list);
+    }
+
+    // Direct Browser URL to get pre-generated demo tokens for fast testing without Postman
+    @GetMapping("/demo-tokens")
+    public ResponseEntity<Map<String, Object>> getDemoTokens() {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("admin_token", jwtUtil.generateToken("admin@bistrobyte.com", "ROLE_ADMIN", "Restaurant Admin"));
+        response.put("chef_token", jwtUtil.generateToken("chef@bistrobyte.com", "ROLE_KITCHEN_STAFF", "Head Chef Gordon"));
+        response.put("customer_token", jwtUtil.generateToken("customer@bistrobyte.com", "ROLE_CUSTOMER", "Alice Customer"));
+        response.put("token_type", "Bearer");
+        response.put("expires_in_hours", 24);
+        return ResponseEntity.ok(response);
+    }
+
+    // Direct Browser URL for quick login: e.g., /api/auth/quick-login?role=ADMIN or KITCHEN_STAFF or CUSTOMER
+    @GetMapping("/quick-login")
+    public ResponseEntity<Map<String, Object>> quickLogin(@RequestParam(defaultValue = "CUSTOMER") String role) {
+        String roleName = role.toUpperCase();
+        if (!roleName.startsWith("ROLE_")) {
+            roleName = "ROLE_" + roleName;
+        }
+
+        String email;
+        String name;
+        if (roleName.contains("ADMIN")) {
+            email = "admin@bistrobyte.com";
+            name = "Restaurant Admin";
+            roleName = "ROLE_ADMIN";
+        } else if (roleName.contains("KITCHEN") || roleName.contains("CHEF") || roleName.contains("STAFF")) {
+            email = "chef@bistrobyte.com";
+            name = "Head Chef Gordon";
+            roleName = "ROLE_KITCHEN_STAFF";
+        } else {
+            email = "customer@bistrobyte.com";
+            name = "Alice Customer";
+            roleName = "ROLE_CUSTOMER";
+        }
+
+        String token = jwtUtil.generateToken(email, roleName, name);
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("status", "SUCCESS");
+        response.put("message", "Quick login successful for role " + roleName);
+        response.put("name", name);
+        response.put("email", email);
+        response.put("role", roleName);
+        response.put("token", token);
+        return ResponseEntity.ok(response);
+    }
+
+    // POST Login
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
+        String email = credentials.get("email");
+        String password = credentials.get("password");
+
+        if (email == null || password == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email and password are required"));
+        }
+
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty() || !userOpt.get().getPassword().equals(password)) {
+            return ResponseEntity.status(401).body(Map.of("error", "Invalid email or password"));
+        }
+
+        User user = userOpt.get();
+        String token = jwtUtil.generateToken(user.getEmail(), user.getRole(), user.getName());
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("token", token);
+        response.put("email", user.getEmail());
+        response.put("name", user.getName());
+        response.put("role", user.getRole());
+        return ResponseEntity.ok(response);
+    }
+
+    // POST Register (general, used internally)
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody User user) {
+        if (userRepository.existsByEmail(user.getEmail())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email is already registered"));
+        }
+
+        if (user.getRole() == null || user.getRole().isEmpty()) {
+            user.setRole("ROLE_CUSTOMER");
+        } else if (!user.getRole().startsWith("ROLE_")) {
+            user.setRole("ROLE_" + user.getRole().toUpperCase());
+        }
+
+        User saved = userRepository.save(user);
+        String token = jwtUtil.generateToken(saved.getEmail(), saved.getRole(), saved.getName());
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("message", "User registered successfully");
+        response.put("userId", saved.getId());
+        response.put("email", saved.getEmail());
+        response.put("name", saved.getName());
+        response.put("role", saved.getRole());
+        response.put("token", token);
+        return ResponseEntity.ok(response);
+    }
+
+    // POST Register Customer - always creates ROLE_CUSTOMER (safe public endpoint)
+    @PostMapping("/register-customer")
+    public ResponseEntity<?> registerCustomer(@RequestBody Map<String, String> body) {
+        String name     = body.getOrDefault("name", "");
+        String email    = body.getOrDefault("email", "");
+        String password = body.getOrDefault("password", "");
+        String phone    = body.getOrDefault("phone", "");
+
+        if (name.isEmpty() || email.isEmpty() || password.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Name, email and password are required"));
+        }
+        if (userRepository.existsByEmail(email)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email '" + email + "' is already registered"));
+        }
+
+        User user = new User(name, email, password, "ROLE_CUSTOMER", phone);
+        User saved = userRepository.save(user);
+        String token = jwtUtil.generateToken(saved.getEmail(), saved.getRole(), saved.getName());
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("message", "Customer account created successfully");
+        response.put("id", saved.getId());
+        response.put("name", saved.getName());
+        response.put("email", saved.getEmail());
+        response.put("role", saved.getRole());
+        response.put("token", token);
+        return ResponseEntity.ok(response);
+    }
+
+    // GET /api/auth/seed-demo-users  — creates admin/kitchen/customer demo accounts if not present
+    @GetMapping("/seed-demo-users")
+    public ResponseEntity<?> seedDemoUsers() {
+        List<Map<String, String>> seeded = new ArrayList<>();
+
+        record DemoUser(String name, String email, String password, String role, String phone) {}
+        List<DemoUser> demos = List.of(
+            new DemoUser("Restaurant Admin",  "admin@bistrobyte.com",   "password", "ROLE_ADMIN",          "+1-555-0100"),
+            new DemoUser("Chef Gordon",        "kitchen@bistrobyte.com", "password", "ROLE_KITCHEN_STAFF",  "+1-555-0101"),
+            new DemoUser("Alice Customer",     "alice@bistrobyte.com",   "password", "ROLE_CUSTOMER",       "+1-555-0102")
+        );
+
+        for (DemoUser d : demos) {
+            if (!userRepository.existsByEmail(d.email())) {
+                User u = new User(d.name(), d.email(), d.password(), d.role(), d.phone());
+                userRepository.save(u);
+                seeded.add(Map.of("name", d.name(), "email", d.email(), "role", d.role()));
+            }
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", seeded.isEmpty() ? "Demo users already exist" : "Seeded demo users");
+        result.put("seeded", seeded);
+        result.put("login_hint", "Use password: password for all demo accounts");
+        return ResponseEntity.ok(result);
+    }
+
+    // Direct Browser URL to add/register a new customer without Postman:
+    // e.g. /api/auth/quick-register?name=John+Doe&email=john@example.com&password=pass123&phone=555-1234
+    @GetMapping("/quick-register")
+    public ResponseEntity<?> quickRegister(
+            @RequestParam String name,
+            @RequestParam String email,
+            @RequestParam(defaultValue = "pass123") String password,
+            @RequestParam(defaultValue = "+1-555-0199") String phone,
+            @RequestParam(defaultValue = "CUSTOMER") String role) {
+
+        if (userRepository.existsByEmail(email)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email '" + email + "' is already registered"));
+        }
+
+        String roleName = role.toUpperCase();
+        if (!roleName.startsWith("ROLE_")) {
+            roleName = "ROLE_" + roleName;
+        }
+
+        User user = new User(name, email, password, roleName, phone);
+        User saved = userRepository.save(user);
+        String token = jwtUtil.generateToken(saved.getEmail(), saved.getRole(), saved.getName());
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("status", "SUCCESS");
+        response.put("message", "New customer registered successfully via Direct URL");
+        response.put("userId", saved.getId());
+        response.put("name", saved.getName());
+        response.put("email", saved.getEmail());
+        response.put("role", saved.getRole());
+        response.put("token", token);
+        return ResponseEntity.ok(response);
+    }
+
+    // Direct Browser URL to verify any token: /api/auth/verify?token=...
+    @GetMapping("/verify")
+    public ResponseEntity<?> verifyToken(@RequestParam String token) {
+        if (!jwtUtil.isTokenValid(token)) {
+            return ResponseEntity.status(401).body(Map.of("valid", false, "error", "Invalid or expired JWT token"));
+        }
+
+        Claims claims = jwtUtil.extractClaims(token);
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("valid", true);
+        res.put("subject_email", claims.getSubject());
+        res.put("role", claims.get("role"));
+        res.put("name", claims.get("name"));
+        res.put("expiresAt", claims.getExpiration());
+        return ResponseEntity.ok(res);
+    }
+}

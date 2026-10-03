@@ -1,0 +1,820 @@
+// ─── AUTH STATE ────────────────────────────────────────────────
+let currentUser = null;   // { name, email, role, token }
+
+// Initialize: just load menu; no auto-login anymore
+document.addEventListener('DOMContentLoaded', () => {
+    loadMenuItems();
+    fetchKitchenOrders();
+    setInterval(fetchKitchenOrders, 10000);
+    updateHeaderAuthUI();
+});
+
+// ─── LOGIN MODAL CONTROLS ────────────────────────────────────────
+function openLoginModal() {
+    document.getElementById('loginModalBackdrop').style.display = 'flex';
+    document.getElementById('loginError').style.display = 'none';
+    document.getElementById('loginError').textContent = '';
+    showAuthTab('login');
+}
+
+function closeLoginModal() {
+    document.getElementById('loginModalBackdrop').style.display = 'none';
+}
+
+function closeLoginModalOnBackdrop(e) {
+    if (e.target === document.getElementById('loginModalBackdrop')) closeLoginModal();
+}
+
+function showAuthTab(tab) {
+    const isLogin = tab === 'login';
+    document.getElementById('loginForm').style.display   = isLogin ? '' : 'none';
+    document.getElementById('registerForm').style.display = isLogin ? 'none' : '';
+    document.getElementById('tabBtnLogin').classList.toggle('active', isLogin);
+    document.getElementById('tabBtnRegister').classList.toggle('active', !isLogin);
+}
+
+function prefillLogin(email, password) {
+    document.getElementById('loginEmail').value = email;
+    document.getElementById('loginPassword').value = password;
+}
+
+// ─── REAL LOGIN (calls POST /api/auth/login) ─────────────────────
+async function doLogin() {
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+    const errEl    = document.getElementById('loginError');
+    const btn      = document.getElementById('loginSubmitBtn');
+
+    if (!email || !password) {
+        errEl.textContent = '⚠️ Please enter email and password.';
+        errEl.style.display = 'block';
+        return;
+    }
+    btn.textContent = 'Logging in...';
+    btn.disabled = true;
+    errEl.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+            currentUser = { name: data.name, email: data.email, role: data.role, token: data.token };
+            jwtToken = data.token;
+            closeLoginModal();
+            updateHeaderAuthUI();
+            showToast(`✅ Welcome, ${data.name}! Logged in as ${formatRole(data.role)}`, 'success');
+        } else {
+            errEl.textContent = '❌ ' + (data.message || data.error || 'Invalid email or password.');
+            errEl.style.display = 'block';
+        }
+    } catch (e) {
+        errEl.textContent = '❌ Connection error: ' + e.message;
+        errEl.style.display = 'block';
+    } finally {
+        btn.textContent = '🔑 Login & Access Dashboard';
+        btn.disabled = false;
+    }
+}
+
+// ─── REAL REGISTER (calls POST /api/auth/register-customer) ──────
+async function doRegister() {
+    const name     = document.getElementById('regName').value.trim();
+    const email    = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value.trim();
+    const phone    = document.getElementById('regPhone').value.trim();
+    const errEl    = document.getElementById('registerError');
+    const okEl     = document.getElementById('registerSuccess');
+    const btn      = document.getElementById('registerSubmitBtn');
+
+    errEl.style.display = 'none';
+    okEl.style.display  = 'none';
+
+    if (!name || !email || !password) {
+        errEl.textContent = '⚠️ Name, email and password are required.';
+        errEl.style.display = 'block';
+        return;
+    }
+    btn.textContent = 'Registering...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/auth/register-customer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password, phone })
+        });
+        const data = await res.json();
+        if (res.ok && (data.token || data.id || data.success)) {
+            okEl.textContent = `✅ Account created! You can now login with ${email}.`;
+            okEl.style.display = 'block';
+            // auto-switch to login tab and prefill
+            setTimeout(() => {
+                showAuthTab('login');
+                prefillLogin(email, password);
+            }, 1500);
+        } else {
+            errEl.textContent = '❌ ' + (data.message || data.error || 'Registration failed.');
+            errEl.style.display = 'block';
+        }
+    } catch (e) {
+        errEl.textContent = '❌ Connection error: ' + e.message;
+        errEl.style.display = 'block';
+    } finally {
+        btn.textContent = '✅ Create Customer Account';
+        btn.disabled = false;
+    }
+}
+
+// ─── LOGOUT ────────────────────────────────────────────────────────
+function logoutUser() {
+    currentUser = null;
+    jwtToken    = '';
+    updateHeaderAuthUI();
+    showToast('👋 Logged out successfully.', 'success');
+}
+
+// ─── HEADER UI UPDATE ──────────────────────────────────────────────
+function updateHeaderAuthUI() {
+    const loggedOut = document.getElementById('loggedOutView');
+    const loggedIn  = document.getElementById('loggedInView');
+    const badge     = document.getElementById('headerRoleBadge');
+    const nameEl    = document.getElementById('headerUserName');
+
+    if (currentUser) {
+        loggedOut.style.display = 'none';
+        loggedIn.style.display  = '';
+        badge.textContent = formatRole(currentUser.role);
+        badge.className   = 'role-badge-header role-badge-' + currentUser.role.replace('ROLE_','').toLowerCase();
+        nameEl.textContent = currentUser.name;
+    } else {
+        loggedOut.style.display = '';
+        loggedIn.style.display  = 'none';
+    }
+}
+
+function formatRole(role) {
+    const map = {
+        'ROLE_ADMIN':         '👑 Admin',
+        'ROLE_KITCHEN_STAFF': '👨\u200d🍳 Kitchen Staff',
+        'ROLE_CUSTOMER':      '🧑\u200d💼 Customer'
+    };
+    return map[role] || role;
+}
+
+// Legacy stub kept so other calls don't break
+async function switchRole(role) { /* replaced by real login */ }
+
+// Tab Switcher
+function openTab(tabId) {
+    document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-tab-btn').forEach(el => el.classList.remove('active'));
+
+    const targetTab = document.getElementById(tabId);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+
+    // Highlight button
+    event.currentTarget.classList.add('active');
+
+    if (tabId === 'kitchenTab') {
+        fetchKitchenOrders();
+    } else if (tabId === 'managementTab') {
+        renderInventoryTable();
+    }
+}
+
+// -------------------------------------------------------------
+// TAB 1: DIGITAL MENU & ORDERING
+// -------------------------------------------------------------
+async function loadMenuItems() {
+    try {
+        const res = await fetch('/api/menu/all');
+        allMenuItems = await res.json();
+        renderMenuDishes();
+        renderInventoryTable();
+    } catch (e) {
+        console.error("Failed to load menu items:", e);
+        document.getElementById('menuDishesGrid').innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">
+                <p style="color: var(--danger);">Services are currently connecting to Eureka registry. Please wait a few seconds and refresh.</p>
+                <button class="btn-kds-action" onclick="loadMenuItems()" style="margin-top: 1rem; background: var(--primary);">Retry</button>
+            </div>
+        `;
+    }
+}
+
+function filterCategory(category) {
+    currentCategory = category;
+    document.querySelectorAll('.category-pill').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.trim() === category || (category === 'All' && btn.textContent.trim() === 'All Dishes'));
+    });
+    renderMenuDishes();
+}
+
+function handleMenuSearch(keyword) {
+    renderMenuDishes(keyword.trim().toLowerCase());
+}
+
+function renderMenuDishes(searchQuery = '') {
+    const grid = document.getElementById('menuDishesGrid');
+    if (!grid) return;
+
+    let filtered = allMenuItems;
+
+    if (currentCategory !== 'All') {
+        filtered = filtered.filter(item => item.category === currentCategory);
+    }
+
+    if (searchQuery) {
+        filtered = filtered.filter(item =>
+            item.name.toLowerCase().includes(searchQuery) ||
+            item.description.toLowerCase().includes(searchQuery) ||
+            item.category.toLowerCase().includes(searchQuery)
+        );
+    }
+
+    if (filtered.length === 0) {
+        grid.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 2rem;">No menu items found in this section.</p>`;
+        return;
+    }
+
+    grid.innerHTML = filtered.map(item => {
+        const isSoldOut = !item.isAvailable;
+        return `
+            <div class="dish-card ${isSoldOut ? 'sold-out' : ''}">
+                <div class="card-image-wrap">
+                    <img src="${item.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600'}" alt="${item.name}" loading="lazy">
+                    <span class="category-tag">${item.category}</span>
+                    ${isSoldOut ? `<span class="sold-out-badge">SOLD OUT</span>` : ''}
+                </div>
+                <div class="card-body">
+                    <div class="card-meta">
+                        <span class="diet-pill ${item.dietaryType}">${item.dietaryType}</span>
+                        <span class="prep-time">⏱️ ${item.prepTimeMinutes || 15} mins</span>
+                    </div>
+                    <h3 class="dish-name">${item.name}</h3>
+                    <p class="dish-desc">${item.description}</p>
+                    <div class="card-footer">
+                        <span class="dish-price">$${item.price.toFixed(2)}</span>
+                        <button class="btn-add-order" ${isSoldOut ? 'disabled' : ''} onclick="addToCart(${item.id})">
+                            ${isSoldOut ? 'Sold Out' : '➕ Add to Order'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// -------------------------------------------------------------
+// CART & MULTI-CHANNEL CHECKOUT
+// -------------------------------------------------------------
+function selectChannel(channel) {
+    selectedChannel = channel;
+    document.querySelectorAll('.channel-btn').forEach(btn => btn.classList.remove('active'));
+
+    const groupTable = document.getElementById('groupTableNum');
+    const groupAddress = document.getElementById('groupAddress');
+    const groupPhone = document.getElementById('groupPhone');
+
+    if (channel === 'DINE_IN') {
+        document.getElementById('btnChannelDineIn').classList.add('active');
+        groupTable.style.display = 'block';
+        groupAddress.style.display = 'none';
+        groupPhone.style.display = 'none';
+    } else if (channel === 'TAKEAWAY') {
+        document.getElementById('btnChannelTakeaway').classList.add('active');
+        groupTable.style.display = 'none';
+        groupAddress.style.display = 'none';
+        groupPhone.style.display = 'block';
+    } else if (channel === 'DELIVERY') {
+        document.getElementById('btnChannelDelivery').classList.add('active');
+        groupTable.style.display = 'none';
+        groupAddress.style.display = 'block';
+        groupPhone.style.display = 'block';
+    }
+}
+
+function addToCart(dishId) {
+    const item = allMenuItems.find(i => i.id === dishId);
+    if (!item) return;
+
+    if (!item.isAvailable) {
+        showToast(`Cannot add '${item.name}' - Dish is Sold Out!`, 'error');
+        return;
+    }
+
+    const existing = cart.find(c => c.id === dishId);
+    if (existing) {
+        existing.quantity += 1;
+    } else {
+        cart.push({
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            price: item.price,
+            quantity: 1
+        });
+    }
+
+    updateCartUI();
+    showToast(`Added '${item.name}' to order`, 'success');
+}
+
+function updateQty(dishId, delta) {
+    const existing = cart.find(c => c.id === dishId);
+    if (!existing) return;
+
+    existing.quantity += delta;
+    if (existing.quantity <= 0) {
+        cart = cart.filter(c => c.id !== dishId);
+    }
+    updateCartUI();
+}
+
+function updateCartUI() {
+    const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const tax = subtotal * 0.05;
+    const total = subtotal + tax;
+
+    document.getElementById('cartCountBadge').textContent = totalQty;
+    document.getElementById('cartTotalBadge').textContent = `$${total.toFixed(2)}`;
+
+    document.getElementById('billSubtotal').textContent = `$${subtotal.toFixed(2)}`;
+    document.getElementById('billTax').textContent = `$${tax.toFixed(2)}`;
+    document.getElementById('billTotal').textContent = `$${total.toFixed(2)}`;
+
+    const cartList = document.getElementById('cartItemsList');
+    if (cart.length === 0) {
+        cartList.innerHTML = `<p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 2rem 0;">Your order is currently empty. Browse the menu to add dishes!</p>`;
+        return;
+    }
+
+    cartList.innerHTML = cart.map(item => `
+        <div class="cart-item-row">
+            <div class="cart-item-info">
+                <h4>${item.name}</h4>
+                <span>$${item.price.toFixed(2)} &times; ${item.quantity} = $${(item.price * item.quantity).toFixed(2)}</span>
+            </div>
+            <div class="qty-controls">
+                <button class="qty-btn" onclick="updateQty(${item.id}, -1)">-</button>
+                <span style="font-weight: 700; min-width: 20px; text-align: center;">${item.quantity}</span>
+                <button class="qty-btn" onclick="updateQty(${item.id}, 1)">+</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function openCartDrawer() {
+    document.getElementById('cartOverlay').classList.add('open');
+}
+
+function closeCartDrawer() {
+    document.getElementById('cartOverlay').classList.remove('open');
+}
+
+function closeCartOnOverlay(e) {
+    if (e.target.id === 'cartOverlay') {
+        closeCartDrawer();
+    }
+}
+
+// Submit Order to Order Microservice
+async function submitOrder() {
+    if (cart.length === 0) {
+        showToast('Please add at least one dish to your order.', 'error');
+        return;
+    }
+
+    const customerName = document.getElementById('inputCustomerName').value || 'Guest Customer';
+    const specialNotes = document.getElementById('inputSpecialNotes').value || '';
+    const tableNumber = document.getElementById('inputTableNum').value || 'Table 1';
+    const deliveryAddress = document.getElementById('inputAddress').value || '';
+    const phone = document.getElementById('inputPhone').value || '';
+
+    const orderPayload = {
+        customerName: customerName,
+        customerEmail: 'customer@bistrobyte.com',
+        channel: selectedChannel,
+        tableNumber: selectedChannel === 'DINE_IN' ? tableNumber : null,
+        deliveryAddress: selectedChannel === 'DELIVERY' ? deliveryAddress : null,
+        customerPhone: phone,
+        specialInstructions: specialNotes,
+        items: cart.map(item => ({
+            menuItemId: item.id,
+            itemName: item.name,
+            category: item.category,
+            price: item.price,
+            quantity: item.quantity
+        }))
+    };
+
+    try {
+        const response = await fetch('/api/orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + jwtToken
+            },
+            body: JSON.stringify(orderPayload)
+        });
+
+        const data = await response.json();
+
+        if (response.status === 409 || data.error === 'SOLD_OUT_ERROR') {
+            // Inter-service check caught sold-out item!
+            showToast(data.message || 'Order rejected: Sold-out item detected!', 'error');
+            return;
+        }
+
+        if (!response.ok) {
+            showToast('Failed to place order: ' + (data.message || data.error || 'Server error'), 'error');
+            return;
+        }
+
+        // Order placed successfully!
+        showToast(`🎉 Order ${data.orderNumber} placed successfully!`, 'success');
+        cart = [];
+        updateCartUI();
+        closeCartDrawer();
+
+        // Switch to Live Tracker tab with this order
+        document.getElementById('trackerInput').value = data.orderNumber;
+        openTab('trackerTab');
+        trackOrder();
+        fetchKitchenOrders();
+
+    } catch (e) {
+        showToast('Network error while placing order: ' + e.message, 'error');
+    }
+}
+
+// -------------------------------------------------------------
+// TAB 2: KITCHEN EXECUTION SYSTEM (KDS)
+// -------------------------------------------------------------
+async function fetchKitchenOrders() {
+    try {
+        const res = await fetch('/api/orders/kitchen/active');
+        const orders = await res.json();
+
+        const placedOrders = orders.filter(o => o.status === 'PLACED' || o.status === 'CONFIRMED');
+        const prepOrders = orders.filter(o => o.status === 'PREPARING');
+        const readyOrders = orders.filter(o => o.status === 'READY_FOR_PICKUP');
+
+        // Update metric counters
+        document.getElementById('statPlaced').textContent = placedOrders.length;
+        document.getElementById('statPreparing').textContent = prepOrders.length;
+        document.getElementById('statReady').textContent = readyOrders.length;
+        document.getElementById('statTotalActive').textContent = orders.length;
+        document.getElementById('kdsBadge').textContent = orders.length;
+
+        document.getElementById('colPlacedCount').textContent = placedOrders.length;
+        document.getElementById('colPrepCount').textContent = prepOrders.length;
+        document.getElementById('colReadyCount').textContent = readyOrders.length;
+
+        renderKdsCards('colPlacedCards', placedOrders, 'Start Cooking 🔥', 'PREPARING');
+        renderKdsCards('colPrepCards', prepOrders, 'Mark Ready ✅', 'READY_FOR_PICKUP');
+        renderKdsCards('colReadyCards', readyOrders, 'Complete / Deliver 🚀', 'COMPLETED');
+
+    } catch (e) {
+        console.warn("KDS poll error:", e);
+    }
+}
+
+function renderKdsCards(containerId, orders, nextActionLabel, nextStatus) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (orders.length === 0) {
+        container.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-dim); text-align: center; padding: 2rem 0;">No orders in this stage.</p>`;
+        return;
+    }
+
+    container.innerHTML = orders.map(o => {
+        const channelLabel = o.channel === 'DINE_IN' ? `🪑 ${o.tableNumber || 'Table'}` :
+                             o.channel === 'DELIVERY' ? `🛵 Delivery` : `🥡 Takeaway`;
+
+        const itemsHtml = o.items ? o.items.map(item => `
+            <div class="kds-dish-item">
+                <span>${item.itemName}</span>
+                <span style="color: var(--accent); font-weight: bold;">&times; ${item.quantity}</span>
+            </div>
+        `).join('') : '';
+
+        return `
+            <div class="kds-order-card ${o.status}">
+                <div class="kds-card-top">
+                    <span class="kds-order-num">${o.orderNumber}</span>
+                    <span class="kds-channel-badge">${channelLabel}</span>
+                </div>
+                <div class="kds-customer-row">
+                    👤 ${o.customerName}
+                    ${o.specialInstructions ? `<div style="font-size: 0.75rem; color: var(--warning); margin-top: 0.2rem;">Note: ${o.specialInstructions}</div>` : ''}
+                </div>
+                <div class="kds-items-box">
+                    ${itemsHtml}
+                </div>
+                <div class="kds-card-footer">
+                    <span class="kds-time">⏱️ Total: $${o.totalAmount ? o.totalAmount.toFixed(2) : '0.00'}</span>
+                    <button class="btn-kds-action" onclick="updateOrderStatus(${o.id}, '${nextStatus}')">
+                        ${nextActionLabel}
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function updateOrderStatus(orderId, newStatus) {
+    try {
+        // Direct GET URL for easy testing & compatibility
+        const res = await fetch(`/api/orders/update-status-get?orderId=${orderId}&status=${newStatus}`);
+        const data = await res.json();
+        if (res.ok) {
+            showToast(`Order status updated to ${newStatus}`, 'success');
+            fetchKitchenOrders();
+        } else {
+            showToast('Failed to update status: ' + data.error, 'error');
+        }
+    } catch (e) {
+        showToast('Error updating status: ' + e.message, 'error');
+    }
+}
+
+// -------------------------------------------------------------
+// TAB 3: LIVE ORDER TRACKER
+// -------------------------------------------------------------
+async function trackOrder() {
+    const orderNumber = document.getElementById('trackerInput').value.trim();
+    if (!orderNumber) {
+        showToast('Please enter an Order Number to track.', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/orders/track?orderNumber=${encodeURIComponent(orderNumber)}`);
+        if (!res.ok) {
+            showToast(`Order ${orderNumber} not found. Try BB-1021 or place a new order!`, 'error');
+            return;
+        }
+
+        const data = await res.json();
+        renderTrackerData(data);
+
+    } catch (e) {
+        showToast('Failed to track order: ' + e.message, 'error');
+    }
+}
+
+function renderTrackerData(data) {
+    const step = data.currentStep || 1;
+    const progressPercent = Math.min(100, Math.max(10, (step - 1) * 25));
+
+    document.getElementById('stepperProgressBar').style.width = progressPercent + '%';
+
+    for (let i = 1; i <= 5; i++) {
+        const node = document.getElementById(`stepNode${i}`);
+        if (!node) continue;
+        node.classList.remove('active', 'completed');
+        if (i < step) {
+            node.classList.add('completed');
+        } else if (i === step) {
+            node.classList.add('active');
+        }
+    }
+
+    const itemsSummary = data.items ? data.items.map(item => `
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <span>${item.itemName} &times; ${item.quantity}</span>
+            <span style="color: var(--accent); font-weight: bold;">$${item.subtotal ? item.subtotal.toFixed(2) : (item.price * item.quantity).toFixed(2)}</span>
+        </div>
+    `).join('') : '';
+
+    const channelDetails = data.channel === 'DINE_IN' ? `Table: ${data.tableNumber || 'N/A'}` :
+                          data.channel === 'DELIVERY' ? `Delivery to: ${data.deliveryAddress || 'N/A'}` :
+                          `Takeaway Pickup`;
+
+    document.getElementById('trackerDetailsCard').innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
+            <div>
+                <h3 style="font-family: var(--font-heading); font-size: 1.3rem;">Order #${data.orderNumber}</h3>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">${channelDetails} | Guest: ${data.customerName}</span>
+            </div>
+            <span class="kds-channel-badge" style="font-size: 0.85rem; background: var(--bg-card); color: var(--primary);">
+                STATUS: ${data.status}
+            </span>
+        </div>
+
+        <div style="display: flex; gap: 2rem; margin: 0.5rem 0; font-size: 0.85rem;">
+            <div>⏱️ Estimated Prep Time: <strong>${data.estimatedPrepMinutes || 20} mins</strong></div>
+            <div>💰 Total: <strong>$${data.totalAmount ? data.totalAmount.toFixed(2) : '0.00'}</strong></div>
+        </div>
+
+        <div>
+            <h4 style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.4rem;">Order Items:</h4>
+            ${itemsSummary}
+        </div>
+    `;
+}
+
+// -------------------------------------------------------------
+// TAB 4: MENU & SOLD-OUT MANAGER (ADMIN / STAFF)
+// -------------------------------------------------------------
+function renderInventoryTable() {
+    const tbody = document.getElementById('inventoryTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = allMenuItems.map(item => `
+        <tr>
+            <td style="font-family: monospace; color: var(--text-dim);">${item.id}</td>
+            <td style="font-weight: 700; color: #fff;">${item.name}</td>
+            <td><span class="category-tag" style="position: static;">${item.category}</span></td>
+            <td style="color: var(--accent); font-weight: 700;">$${item.price.toFixed(2)}</td>
+            <td><span class="diet-pill ${item.dietaryType}">${item.dietaryType}</span></td>
+            <td>
+                <span style="font-weight: 700; color: ${item.isAvailable ? 'var(--success)' : 'var(--danger)'};">
+                    ${item.isAvailable ? '● IN STOCK' : '● SOLD OUT'}
+                </span>
+            </td>
+            <td>
+                <label class="switch">
+                    <input type="checkbox" ${item.isAvailable ? 'checked' : ''} onchange="toggleDishAvailability(${item.id})">
+                    <span class="slider"></span>
+                </label>
+            </td>
+            <td>
+                <button class="btn-open-url" onclick="quickEditPrice(${item.id}, ${item.price})">Edit Price</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function toggleDishAvailability(dishId) {
+    try {
+        // Direct GET URL for easy testing & execution without Postman
+        const res = await fetch(`/api/menu/toggle-availability?id=${dishId}`);
+        const data = await res.json();
+        if (res.ok) {
+            showToast(`${data.name} is now ${data.isAvailable ? 'IN STOCK' : 'SOLD OUT'}`, 'success');
+            loadMenuItems();
+        } else {
+            showToast('Error toggling availability: ' + data.error, 'error');
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+async function quickEditPrice(dishId, currentPrice) {
+    const newPriceStr = prompt(`Enter new price for dish ID ${dishId}:`, currentPrice);
+    if (!newPriceStr) return;
+
+    const newPrice = parseFloat(newPriceStr);
+    if (isNaN(newPrice) || newPrice <= 0) {
+        alert("Invalid price entered.");
+        return;
+    }
+
+    const item = allMenuItems.find(i => i.id === dishId);
+    if (!item) return;
+
+    try {
+        const res = await fetch(`/api/menu/${dishId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ...item,
+                price: newPrice
+            })
+        });
+
+        if (res.ok) {
+            showToast(`Updated price to $${newPrice.toFixed(2)}`, 'success');
+            loadMenuItems();
+        }
+    } catch (e) {
+        showToast('Error updating price: ' + e.message, 'error');
+    }
+}
+
+// Add New Dish Modal
+function openAddDishModal() {
+    document.getElementById('addDishOverlay').classList.add('open');
+}
+
+function closeAddDishModal() {
+    document.getElementById('addDishOverlay').classList.remove('open');
+}
+
+function closeAddDishOnOverlay(e) {
+    if (e.target.id === 'addDishOverlay') {
+        closeAddDishModal();
+    }
+}
+
+async function submitNewDish() {
+    const name = document.getElementById('newDishName').value.trim();
+    const category = document.getElementById('newDishCategory').value;
+    const price = parseFloat(document.getElementById('newDishPrice').value);
+    const diet = document.getElementById('newDishDiet').value;
+    const prepTime = parseInt(document.getElementById('newDishPrepTime').value) || 15;
+    const desc = document.getElementById('newDishDesc').value.trim();
+    const image = document.getElementById('newDishImage').value.trim() || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600';
+
+    if (!name || isNaN(price)) {
+        showToast('Please fill in dish name and price.', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/menu', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                category: category,
+                price: price,
+                dietaryType: diet,
+                prepTimeMinutes: prepTime,
+                description: desc || 'Delicious chef specialty prepared fresh to order.',
+                imageUrl: image,
+                isAvailable: true
+            })
+        });
+
+        if (res.ok) {
+            showToast(`Dish '${name}' created successfully!`, 'success');
+            closeAddDishModal();
+            loadMenuItems();
+        } else {
+            showToast('Failed to create dish.', 'error');
+        }
+    } catch (e) {
+        showToast('Error creating dish: ' + e.message, 'error');
+    }
+}
+
+// -------------------------------------------------------------
+// TAB 5: DIRECT URL TEST CENTER (NO POSTMAN)
+// -------------------------------------------------------------
+async function runDirectUrl(url) {
+    const consoleHeader = document.getElementById('consoleUrlHeader');
+    const consoleOutput = document.getElementById('jsonConsoleOutput');
+
+    consoleHeader.textContent = `Executing: GET ${url} ...`;
+    consoleOutput.textContent = "Sending request directly via URL...";
+
+    const startTime = performance.now();
+
+    try {
+        const res = await fetch(url);
+        const duration = (performance.now() - startTime).toFixed(1);
+        const json = await res.json();
+
+        consoleHeader.textContent = `GET ${url} [HTTP ${res.status}] (${duration} ms)`;
+        consoleOutput.textContent = JSON.stringify(json, null, 2);
+
+        // If an update or creation was executed, refresh relevant UI
+        if (url.includes('toggle-availability') || url.includes('quick-create')) {
+            loadMenuItems();
+        } else if (url.includes('orders')) {
+            fetchKitchenOrders();
+        }
+
+    } catch (e) {
+        consoleHeader.textContent = `GET ${url} [ERROR]`;
+        consoleOutput.textContent = "Request failed: " + e.message;
+    }
+}
+
+function clearConsole() {
+    document.getElementById('consoleUrlHeader').textContent = "Live API Response Output";
+    document.getElementById('jsonConsoleOutput').textContent = "// Click any '⚡ Test on Page' button above to inspect live JSON responses directly in browser!";
+}
+
+// -------------------------------------------------------------
+// TOAST NOTIFICATIONS
+// -------------------------------------------------------------
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}

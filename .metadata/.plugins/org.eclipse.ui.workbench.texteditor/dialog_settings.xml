@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<section name="Workbench">
+	<item key="hasShownOverlayPopupBefore" value="true"/>
+	<section name="java.lang.Class">
+		<item key="replaceBarOpen" value="false"/>
+		<list key="findhistory">
+			<item value="function addToCart(dishId) {"/>
+			<item value="function updateCartUI"/>
+			<item value="openCartDrawer()"/>
+			<item value="class=&quot;cart-modal-overlay&quot;"/>
+			<item value=" &lt;span&gt;🛍️ View Order&lt;/span&gt;"/>
+			<item value="&lt;button class=&quot;cart-floating-button&quot; onclick=&quot;openCartDrawer()&quot;&gt;"/>
+			<item value="updateCartUI()"/>
+			<item value="submitOrder()"/>
+			<item value="addToCart()"/>
+			<item value="function openTab(tabId)"/>
+			<item value="applyRoleAccess()"/>
+			<item value="function updateHeaderAuthUI()"/>
+			<item value="let currentUser = null;"/>
+		</list>
+	</section>
+</section>
